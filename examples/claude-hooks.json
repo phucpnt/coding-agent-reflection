@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/coding-agent-reflection/scripts/claude-hook.sh",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

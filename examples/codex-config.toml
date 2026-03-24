@@ -1,0 +1,7 @@
+# Codex OpenTelemetry configuration
+# Add to your Codex config.toml to export traces to the collector
+
+[telemetry]
+enabled = true
+exporter = "otlp-http"
+endpoint = "http://localhost:9000"

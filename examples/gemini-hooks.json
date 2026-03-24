@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "type": "http",
+        "url": "http://localhost:9000/ingest/gemini",
+        "timeout": 5000
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+# Build binaries
+collector
+query
+*.exe
+
+# DuckDB data
+data/
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local

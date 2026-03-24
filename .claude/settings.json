@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/phuc/projects/coding-agent-reflection/scripts/claude-prompt-hook.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/phuc/projects/coding-agent-reflection/scripts/claude-hook.sh",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
