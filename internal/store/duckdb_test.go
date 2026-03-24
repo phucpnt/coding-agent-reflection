@@ -15,7 +15,7 @@ import (
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := New(filepath.Join(dir, "test.duckdb"))
+	s, err := New(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestUpsertReflection(t *testing.T) {
 	}
 
 	var count int
-	if err := s.db.QueryRow("SELECT count(*) FROM reflections WHERE date = ?", date).Scan(&count); err != nil {
+	if err := s.db.QueryRow("SELECT count(*) FROM reflections WHERE date = ?", date.Format("2006-01-02")).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
@@ -148,7 +148,7 @@ func TestHealthCheck(t *testing.T) {
 
 func TestHealthCheckBadDB(t *testing.T) {
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.duckdb")
+	dbPath := filepath.Join(dir, "test.db")
 
 	s, err := New(dbPath)
 	if err != nil {

@@ -16,7 +16,7 @@ type Config struct {
 func Load() Config {
 	c := Config{
 		Port:          envOr("COLLECTOR_PORT", "9000"),
-		DBPath:        envOr("COLLECTOR_DB_PATH", "./data/ai_interactions.duckdb"),
+		DBPath:        envOr("COLLECTOR_DB_PATH", "./data/ai_interactions.db"),
 		RetentionDays: envOrInt("COLLECTOR_RETENTION_DAYS", 0),
 		LLMAPIKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		LLMModel:      envOr("COLLECTOR_LLM_MODEL", "claude-sonnet-4-20250514"),

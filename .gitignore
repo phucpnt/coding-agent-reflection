@@ -1,6 +1,6 @@
-# Build binaries
-collector
-query
+# Build binaries (root-level only, not cmd/ source)
+/collector
+/query
 *.exe
 
 # DuckDB data
