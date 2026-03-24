@@ -11,10 +11,11 @@ type handlerConfig struct {
 	Store         Store
 	LLM           LLMClient
 	RetentionDays int
+	OutputDir     string
 }
 
-func Handler(store Store, llm LLMClient, retentionDays int) http.HandlerFunc {
-	cfg := handlerConfig{Store: store, LLM: llm, RetentionDays: retentionDays}
+func Handler(store Store, llm LLMClient, retentionDays int, outputDir string) http.HandlerFunc {
+	cfg := handlerConfig{Store: store, LLM: llm, RetentionDays: retentionDays, OutputDir: outputDir}
 	return cfg.serveHTTP
 }
 
@@ -35,7 +36,7 @@ func (c *handlerConfig) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		targetDate = parsed
 	}
 
-	reflection, err := RunReflection(r.Context(), c.Store, c.LLM, targetDate)
+	reflection, err := RunReflection(r.Context(), c.Store, c.LLM, targetDate, c.OutputDir)
 	if err != nil {
 		slog.Error("reflection job failed", "err", err, "date", targetDate.Format("2006-01-02"))
 		w.WriteHeader(http.StatusBadGateway)

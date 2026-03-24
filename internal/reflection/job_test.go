@@ -69,7 +69,7 @@ Avoid vague instructions.
 none`,
 	}
 
-	r, err := RunReflection(context.Background(), store, llm, today)
+	r, err := RunReflection(context.Background(), store, llm, today, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRunReflection_NoInteractions(t *testing.T) {
 	store := &mockStore{}
 	llm := &mockLLM{response: "should not be called"}
 
-	r, err := RunReflection(context.Background(), store, llm, time.Now())
+	r, err := RunReflection(context.Background(), store, llm, time.Now(), "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,7 @@ import (
 func setupTestServer(t *testing.T) (*store.Store, *http.ServeMux) {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := store.New(filepath.Join(dir, "test.duckdb"))
+	s, err := store.New(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,8 @@ func setupTestServer(t *testing.T) (*store.Store, *http.ServeMux) {
 	mux.HandleFunc("POST /v1/traces", ingest.CodexHandler(s))
 
 	mockLLM := &testLLM{response: "## Summary\nTest reflection.\n\n## Should Do\nKeep testing.\n\n## Should Not Do\nSkip tests.\n\n## Config Changes\nnone"}
-	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, mockLLM, 0))
+	reflDir := filepath.Join(dir, "reflections")
+	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, mockLLM, 0, reflDir))
 
 	return s, mux
 }

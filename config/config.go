@@ -6,22 +6,23 @@ import (
 )
 
 type Config struct {
-	Port          string
-	DBPath        string
-	RetentionDays int
-	LLMAPIKey     string
-	LLMModel      string
+	Port               string
+	DBPath             string
+	RetentionDays      int
+	ReflectionCLI      string
+	ReflectionSchedule string
+	ReflectionOutputDir string
 }
 
 func Load() Config {
-	c := Config{
-		Port:          envOr("COLLECTOR_PORT", "9000"),
-		DBPath:        envOr("COLLECTOR_DB_PATH", "./data/ai_interactions.db"),
-		RetentionDays: envOrInt("COLLECTOR_RETENTION_DAYS", 0),
-		LLMAPIKey:     os.Getenv("ANTHROPIC_API_KEY"),
-		LLMModel:      envOr("COLLECTOR_LLM_MODEL", "claude-sonnet-4-20250514"),
+	return Config{
+		Port:               envOr("COLLECTOR_PORT", "9000"),
+		DBPath:             envOr("COLLECTOR_DB_PATH", "./data/ai_interactions.db"),
+		RetentionDays:      envOrInt("COLLECTOR_RETENTION_DAYS", 0),
+		ReflectionCLI:      envOr("COLLECTOR_REFLECTION_CLI", "claude --print"),
+		ReflectionSchedule: envOr("COLLECTOR_REFLECTION_SCHEDULE", "daily"),
+		ReflectionOutputDir: envOr("COLLECTOR_REFLECTION_DIR", "./data/reflections"),
 	}
-	return c
 }
 
 func envOr(key, fallback string) string {

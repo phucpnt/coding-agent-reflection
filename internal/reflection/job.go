@@ -23,7 +23,7 @@ type ReflectionResult struct {
 	ConfigChanges string `json:"config_changes"`
 }
 
-func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate time.Time) (*model.Reflection, error) {
+func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate time.Time, outputDir string) (*model.Reflection, error) {
 	from := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, time.Local)
 	to := from.Add(24 * time.Hour)
 
@@ -56,6 +56,12 @@ func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate t
 
 	if err := store.UpsertReflection(ctx, r); err != nil {
 		return nil, fmt.Errorf("upsert reflection: %w", err)
+	}
+
+	if outputDir != "" {
+		if _, err := WriteReflectionFile(outputDir, targetDate, r, len(interactions)); err != nil {
+			return &r, fmt.Errorf("write reflection file (db saved ok): %w", err)
+		}
 	}
 
 	return &r, nil

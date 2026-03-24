@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -21,6 +22,10 @@ func main() {
 
 	cfg := config.Load()
 
+	// Auto-create data directories
+	os.MkdirAll(filepath.Dir(cfg.DBPath), 0o755)
+	os.MkdirAll(cfg.ReflectionOutputDir, 0o755)
+
 	s, err := store.New(cfg.DBPath)
 	if err != nil {
 		slog.Error("failed to open store", "err", err)
@@ -28,10 +33,7 @@ func main() {
 	}
 	defer s.Close()
 
-	llm := &reflection.ClaudeClient{
-		APIKey: cfg.LLMAPIKey,
-		Model:  cfg.LLMModel,
-	}
+	llm := reflection.NewCLICompleter(cfg.ReflectionCLI)
 
 	mux := http.NewServeMux()
 
@@ -65,7 +67,7 @@ func main() {
 	})
 
 	// Reflection
-	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, llm, cfg.RetentionDays))
+	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, llm, cfg.RetentionDays, cfg.ReflectionOutputDir))
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -76,8 +78,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Start reflection scheduler
+	go reflection.RunScheduler(ctx, s, llm, cfg.ReflectionSchedule, cfg.ReflectionOutputDir, cfg.RetentionDays)
+
 	go func() {
-		slog.Info("starting collector", "port", cfg.Port, "db", cfg.DBPath)
+		slog.Info("starting collector", "port", cfg.Port, "db", cfg.DBPath, "reflection_cli", cfg.ReflectionCLI, "schedule", cfg.ReflectionSchedule)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "err", err)
 			os.Exit(1)
