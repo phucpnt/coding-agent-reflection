@@ -20,6 +20,15 @@ vendor/
 .DS_Store
 Thumbs.db
 
+# Agent configs (except settings we track)
+.claude/commands/
+.claude/skills/
+.codex/
+.gemini/
+
+# Node
+package-lock.json
+
 # Environment
 .env
 .env.local
