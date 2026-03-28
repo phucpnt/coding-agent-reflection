@@ -1,2 +1,0 @@
-# Daily reflection at 2 AM
-0 2 * * * curl -s -X POST http://localhost:19321/jobs/daily-reflection
