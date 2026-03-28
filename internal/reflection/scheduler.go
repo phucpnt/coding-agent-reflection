@@ -14,73 +14,56 @@ func RunScheduler(ctx context.Context, store Store, llm LLMClient, schedule stri
 
 	slog.Info("reflection scheduler started", "schedule", schedule)
 
+	// Check immediately on startup for missed reflections
+	runIfNeeded(ctx, store, llm, outputDir, retentionDays)
+
+	// Then tick every hour
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
 	for {
-		var wait time.Duration
-		switch schedule {
-		case "daily":
-			wait = untilNextHour(2) // 02:00 local time
-		case "hourly":
-			wait = untilNextHour(-1) // next full hour
-		default:
-			slog.Error("unknown reflection schedule", "schedule", schedule)
-			return
-		}
-
-		slog.Info("next reflection scheduled", "in", wait.Round(time.Minute))
-
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(wait):
-		}
-
-		targetDate := time.Now()
-		if schedule == "daily" {
-			targetDate = targetDate.AddDate(0, 0, -1) // reflect on yesterday
-		}
-
-		dateStr := targetDate.Format("2006-01-02")
-
-		// Skip if already reflected for this date
-		if exists, err := store.HasReflection(ctx, targetDate); err == nil && exists {
-			slog.Info("reflection already exists, skipping", "date", dateStr)
-			continue
-		}
-
-		slog.Info("running scheduled reflection", "date", dateStr)
-		r, err := RunReflection(ctx, store, llm, targetDate, outputDir)
-		if err != nil {
-			slog.Error("scheduled reflection failed", "err", err)
-			continue
-		}
-		if r == nil {
-			slog.Info("no interactions for scheduled reflection", "date", targetDate.Format("2006-01-02"))
-			continue
-		}
-
-		slog.Info("scheduled reflection complete", "date", targetDate.Format("2006-01-02"))
-
-		if retentionDays > 0 {
-			deleted, err := store.PruneInteractions(ctx, retentionDays)
-			if err != nil {
-				slog.Error("scheduled prune failed", "err", err)
-			} else if deleted > 0 {
-				slog.Info("pruned old interactions", "deleted", deleted)
-			}
+		case <-ticker.C:
+			runIfNeeded(ctx, store, llm, outputDir, retentionDays)
 		}
 	}
 }
 
-func untilNextHour(targetHour int) time.Duration {
-	now := time.Now()
-	if targetHour < 0 {
-		// Next full hour
-		next := now.Truncate(time.Hour).Add(time.Hour)
-		return next.Sub(now)
+func runIfNeeded(ctx context.Context, store Store, llm LLMClient, outputDir string, retentionDays int) {
+	yesterday := time.Now().AddDate(0, 0, -1)
+	dateStr := yesterday.Format("2006-01-02")
+
+	exists, err := store.HasReflection(ctx, yesterday)
+	if err != nil {
+		slog.Error("check reflection existence failed", "err", err, "date", dateStr)
+		return
 	}
-	next := time.Date(now.Year(), now.Month(), now.Day(), targetHour, 0, 0, 0, now.Location())
-	if !next.After(now) {
-		next = next.AddDate(0, 0, 1)
+	if exists {
+		slog.Debug("reflection already exists", "date", dateStr)
+		return
 	}
-	return next.Sub(now)
+
+	slog.Info("running reflection for missing date", "date", dateStr)
+	r, err := RunReflection(ctx, store, llm, yesterday, outputDir)
+	if err != nil {
+		slog.Error("scheduled reflection failed", "err", err, "date", dateStr)
+		return
+	}
+	if r == nil {
+		slog.Info("no interactions for reflection", "date", dateStr)
+		return
+	}
+
+	slog.Info("reflection complete", "date", dateStr)
+
+	if retentionDays > 0 {
+		deleted, err := store.PruneInteractions(ctx, retentionDays)
+		if err != nil {
+			slog.Error("prune failed", "err", err)
+		} else if deleted > 0 {
+			slog.Info("pruned old interactions", "deleted", deleted)
+		}
+	}
 }
