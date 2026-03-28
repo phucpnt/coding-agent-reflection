@@ -1,6 +1,6 @@
 .PHONY: install run setup-claude setup-gemini setup-codex reflect verify status
 
-COLLECTOR_URL ?= http://localhost:9000
+COLLECTOR_URL ?= http://localhost:19321
 
 install:
 	go build -o collector ./cmd/collector/

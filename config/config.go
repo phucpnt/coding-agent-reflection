@@ -17,7 +17,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port:               envOr("COLLECTOR_PORT", "9000"),
+		Port:               envOr("COLLECTOR_PORT", "19321"),
 		DBPath:             envOr("COLLECTOR_DB_PATH", "./data/ai_interactions.db"),
 		RetentionDays:      envOrInt("COLLECTOR_RETENTION_DAYS", 0),
 		ReflectionCLI:      envOr("COLLECTOR_REFLECTION_CLI", "claude --print"),

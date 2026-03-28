@@ -36,7 +36,7 @@ All configuration is via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `COLLECTOR_PORT` | `9000` | HTTP server port |
+| `COLLECTOR_PORT` | `19321` | HTTP server port |
 | `COLLECTOR_DB_PATH` | `./data/ai_interactions.db` | SQLite database path |
 | `COLLECTOR_RETENTION_DAYS` | `0` (keep all) | Auto-prune interactions older than N days |
 | `COLLECTOR_REFLECTION_CLI` | `claude --print` | CLI command for generating reflections |

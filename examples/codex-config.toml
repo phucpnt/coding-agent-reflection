@@ -4,4 +4,4 @@
 [telemetry]
 enabled = true
 exporter = "otlp-http"
-endpoint = "http://localhost:9000"
+endpoint = "http://localhost:19321"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COLLECTOR_URL="${COLLECTOR_URL:-http://localhost:9000}"
+COLLECTOR_URL="${COLLECTOR_URL:-http://localhost:19321}"
 REFLECTION_CLI="${COLLECTOR_REFLECTION_CLI:-claude --print}"
 PASS=0
 FAIL=0

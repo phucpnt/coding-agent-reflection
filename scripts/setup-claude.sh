@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+COLLECTOR_PORT="${COLLECTOR_PORT:-19321}"
 
 if ! command -v jq &>/dev/null; then
   echo "Error: jq is required but not installed."
@@ -10,12 +11,40 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-SETTINGS_FILE="${HOME}/.claude/settings.json"
-if [[ "${1:-}" == "--project" ]]; then
-  SETTINGS_FILE="${PROJECT_DIR}/.claude/settings.json"
+# Determine scope: global or project
+SCOPE="${1:-}"
+if [[ -z "$SCOPE" ]]; then
+  echo "Where should the hooks be installed?"
+  echo ""
+  echo "  1) global   — all Claude Code sessions (~/.claude/settings.json)"
+  echo "  2) project  — this project only (.claude/settings.json)"
+  echo ""
+  read -rp "Choose [1/2]: " choice
+  case "$choice" in
+    1|global)  SCOPE="global" ;;
+    2|project) SCOPE="project" ;;
+    *)
+      echo "Invalid choice. Use: $0 [global|project]"
+      exit 1
+      ;;
+  esac
 fi
 
+case "$SCOPE" in
+  global)
+    SETTINGS_FILE="${HOME}/.claude/settings.json"
+    ;;
+  project|--project)
+    SETTINGS_FILE="${PROJECT_DIR}/.claude/settings.json"
+    ;;
+  *)
+    echo "Usage: $0 [global|project]"
+    exit 1
+    ;;
+esac
+
 echo "Configuring Claude Code hooks in: ${SETTINGS_FILE}"
+echo "Collector port: ${COLLECTOR_PORT}"
 
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 
@@ -38,5 +67,6 @@ jq --arg stop_hook "$STOP_HOOK" '
    else . end)
 ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
 
-echo "Done! Claude Code Stop hook configured."
+echo ""
+echo "Done! Claude Code Stop hook configured (${SCOPE})."
 echo "Restart your Claude Code session for hooks to take effect."

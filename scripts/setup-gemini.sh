@@ -25,7 +25,7 @@ else
   echo '{}' > "$SETTINGS_FILE"
 fi
 
-COLLECTOR_URL="http://localhost:9000/ingest/gemini"
+COLLECTOR_URL="http://localhost:19321/ingest/gemini"
 
 jq --arg url "$COLLECTOR_URL" '
   .hooks //= {} |

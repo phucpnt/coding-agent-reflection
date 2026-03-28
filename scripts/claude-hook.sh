@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-COLLECTOR_URL="${COLLECTOR_URL:-http://localhost:9000}"
+COLLECTOR_URL="${COLLECTOR_URL:-http://localhost:19321}"
 
 INPUT=$(cat)
 

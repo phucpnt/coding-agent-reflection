@@ -27,7 +27,7 @@ cat >> "$CONFIG_FILE" <<'EOF'
 [telemetry]
 enabled = true
 exporter = "otlp-http"
-endpoint = "http://localhost:9000"
+endpoint = "http://localhost:19321"
 EOF
 
 echo "Done! Codex OTel export configured."
