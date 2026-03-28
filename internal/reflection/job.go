@@ -48,7 +48,7 @@ func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate t
 	if err != nil {
 		return nil, fmt.Errorf("write interactions file: %w", err)
 	}
-	defer os.Remove(interactionsFile)
+	// Keep the interactions file for debugging and manual re-runs
 
 	prompt := buildReflectionPrompt(interactionsFile, len(interactions))
 	response, err := llm.Complete(ctx, prompt)

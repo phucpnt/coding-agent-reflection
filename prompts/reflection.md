@@ -1,15 +1,41 @@
 Read the file at {{INTERACTIONS_FILE}} which contains today's coding agent interactions.
 
-Analyze the interactions and provide a structured reflection. Please respond with exactly these four sections, using these exact headers:
+Analyze the interactions and provide a structured reflection.
+
+Use these evaluation dimensions:
+- Goal clarity
+- Context quality
+- Prompt quality
+- Tool/agent usage
+- Verification overhead
+- Repetition / wasted effort
+- Outcome quality
+
+For every major observation, cite 1-3 concrete examples from the interaction log.
+
+Please respond with exactly these four sections, using these exact headers:
 
 ## Summary
-A brief summary of the day's interactions — what was accomplished, overall patterns.
+Brief summary of what was accomplished, major patterns, and where time/energy was likely spent.
 
 ## Should Do
-Patterns, techniques, or prompt styles that worked well and should be repeated.
+Top 3 patterns, techniques, or prompt styles that worked well.
+For each item, include:
+- Why it worked
+- Evidence from the log
+- What to repeat tomorrow
 
 ## Should Not Do
-Mistakes, anti-patterns, or ineffective approaches to avoid.
+Top 3 mistakes, anti-patterns, or ineffective approaches.
+For each item, include:
+- Why it hurt
+- Evidence from the log
+- What to avoid tomorrow
 
 ## Config Changes
-Suggestions for updating agent configs, rules, or workflows based on today's patterns. Write "none" if no changes suggested.
+Only include changes if the issue is structural rather than situational.
+For each suggested change, include:
+- Problem observed
+- Recommended config/rule/workflow update
+- Expected benefit
+Write "none" if no changes suggested.
