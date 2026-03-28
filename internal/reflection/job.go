@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 )
 
 // PromptTemplatePath can be set to a file path containing a custom prompt template.
-// The template should contain {{INTERACTIONS}} as a placeholder.
+// The template should contain {{INTERACTIONS_FILE}} as a placeholder for the file path.
 var PromptTemplatePath string
 
 type Store interface {
@@ -42,7 +43,14 @@ func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate t
 		return nil, nil // no interactions to reflect on
 	}
 
-	prompt := buildReflectionPrompt(interactions)
+	// Write interactions to a temp file so the CLI agent can read it
+	interactionsFile, err := writeInteractionsFile(interactions, targetDate)
+	if err != nil {
+		return nil, fmt.Errorf("write interactions file: %w", err)
+	}
+	defer os.Remove(interactionsFile)
+
+	prompt := buildReflectionPrompt(interactionsFile, len(interactions))
 	response, err := llm.Complete(ctx, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("llm complete: %w", err)
@@ -73,37 +81,64 @@ func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate t
 	return &r, nil
 }
 
-func buildReflectionPrompt(interactions []model.Interaction) string {
-	interactionsBlock := formatInteractions(interactions)
+// InteractionsDir is where temp interaction files are written.
+// Defaults to ./data but can be overridden (must be readable by the CLI agent).
+var InteractionsDir = "./data"
 
+func writeInteractionsFile(interactions []model.Interaction, targetDate time.Time) (string, error) {
+	dir := InteractionsDir
+	os.MkdirAll(dir, 0o755)
+	filename := fmt.Sprintf("interactions-%s.md", targetDate.Format("20060102"))
+	path := filepath.Join(dir, filename)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Coding Agent Interactions — %s\n\n", targetDate.Format("2006-01-02"))
+	fmt.Fprintf(&b, "Total interactions: %d\n\n", len(interactions))
+
+	for i, inter := range interactions {
+		fmt.Fprintf(&b, "## Interaction %d\n\n", i+1)
+		fmt.Fprintf(&b, "- **Provider**: %s\n", inter.Provider)
+		fmt.Fprintf(&b, "- **Time**: %s\n", inter.Ts.Format("15:04:05"))
+		fmt.Fprintf(&b, "- **Session**: %s\n", inter.SessionID)
+		if inter.Project != "" {
+			fmt.Fprintf(&b, "- **Project**: %s\n", inter.Project)
+		}
+		if inter.ToolsUsed.Valid && inter.ToolsUsed.String != "" {
+			fmt.Fprintf(&b, "- **Tools**: %s\n", inter.ToolsUsed.String)
+		}
+		b.WriteString("\n### User Prompt\n\n")
+		b.WriteString(inter.UserPrompt)
+		b.WriteString("\n\n### Agent Output\n\n")
+		b.WriteString(inter.AgentOutput)
+		b.WriteString("\n\n---\n\n")
+	}
+
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return "", err
+	}
+	// Return absolute path so CLI agents can find it regardless of cwd
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return path, nil
+	}
+	return absPath, nil
+}
+
+func buildReflectionPrompt(interactionsFile string, count int) string {
 	// Try custom template first
 	if PromptTemplatePath != "" {
 		if tmpl, err := os.ReadFile(PromptTemplatePath); err == nil {
-			return strings.ReplaceAll(string(tmpl), "{{INTERACTIONS}}", interactionsBlock)
+			return strings.ReplaceAll(string(tmpl), "{{INTERACTIONS_FILE}}", interactionsFile)
 		}
 	}
 
-	// Default template
-	return defaultPromptTemplate(interactionsBlock)
+	return defaultPromptTemplate(interactionsFile, count)
 }
 
-func formatInteractions(interactions []model.Interaction) string {
-	var b strings.Builder
-	for i, inter := range interactions {
-		fmt.Fprintf(&b, "--- Interaction %d (%s) ---\n", i+1, inter.Provider)
-		fmt.Fprintf(&b, "Project: %s\n", inter.Project)
-		fmt.Fprintf(&b, "Prompt: %s\n", truncate(inter.UserPrompt, 500))
-		fmt.Fprintf(&b, "Output: %s\n\n", truncate(inter.AgentOutput, 500))
-	}
-	return b.String()
-}
+func defaultPromptTemplate(interactionsFile string, count int) string {
+	return fmt.Sprintf(`Read the file at %s which contains %d coding agent interactions from today.
 
-func defaultPromptTemplate(interactions string) string {
-	return `Analyze the following coding agent interactions from today and provide a structured reflection.
-
-For each interaction, I'll show the provider, prompt, and output.
-
-` + interactions + `Please respond with exactly these four sections, using these exact headers:
+Analyze the interactions and provide a structured reflection. Please respond with exactly these four sections, using these exact headers:
 
 ## Summary
 A brief summary of the day's interactions — what was accomplished, overall patterns.
@@ -116,7 +151,7 @@ Mistakes, anti-patterns, or ineffective approaches to avoid.
 
 ## Config Changes
 Suggestions for updating agent configs, rules, or workflows based on today's patterns. Write "none" if no changes suggested.
-`
+`, interactionsFile, count)
 }
 
 func parseReflectionResponse(response string) ReflectionResult {
@@ -156,11 +191,4 @@ func parseReflectionResponse(response string) ReflectionResult {
 	}
 
 	return result
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
 }
