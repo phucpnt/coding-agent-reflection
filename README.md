@@ -42,12 +42,25 @@ All configuration is via environment variables:
 | `COLLECTOR_REFLECTION_CLI` | `claude --print` | CLI command for generating reflections |
 | `COLLECTOR_REFLECTION_SCHEDULE` | `daily` | `daily`, `hourly`, or `off` |
 | `COLLECTOR_REFLECTION_DIR` | `./data/reflections` | Directory for reflection markdown files |
+| `COLLECTOR_REFLECTION_PROMPT` | _(built-in)_ | Path to custom prompt template file |
 
 Example with custom settings:
 
 ```bash
 COLLECTOR_REFLECTION_CLI="gemini" COLLECTOR_REFLECTION_SCHEDULE=hourly make run
 ```
+
+### Custom Reflection Prompt
+
+Override the built-in reflection prompt by pointing to your own template file:
+
+```bash
+COLLECTOR_REFLECTION_PROMPT=./prompts/reflection.md make run
+```
+
+The template file uses `{{INTERACTIONS}}` as a placeholder that gets replaced with the formatted interaction data. See `prompts/reflection.md` for the default template.
+
+Your template should instruct the LLM to respond with `## Summary`, `## Should Do`, `## Should Not Do`, and `## Config Changes` section headers — the parser extracts these sections from the response.
 
 ## Usage
 

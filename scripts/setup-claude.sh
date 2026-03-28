@@ -27,23 +27,16 @@ else
   echo '{}' > "$SETTINGS_FILE"
 fi
 
-PROMPT_HOOK="${PROJECT_DIR}/scripts/claude-prompt-hook.sh"
 STOP_HOOK="${PROJECT_DIR}/scripts/claude-hook.sh"
 
-# Merge hooks into existing settings without overwriting
-jq --arg prompt_hook "$PROMPT_HOOK" --arg stop_hook "$STOP_HOOK" '
+# Merge Stop hook into existing settings without overwriting
+jq --arg stop_hook "$STOP_HOOK" '
   .hooks //= {} |
-  .hooks.UserPromptSubmit //= [] |
   .hooks.Stop //= [] |
-  # Add prompt hook if not already present
-  (if (.hooks.UserPromptSubmit | map(select(.hooks[]?.command == $prompt_hook)) | length) == 0
-   then .hooks.UserPromptSubmit += [{"hooks": [{"type": "command", "command": $prompt_hook, "async": true}]}]
-   else . end) |
-  # Add stop hook if not already present
   (if (.hooks.Stop | map(select(.hooks[]?.command == $stop_hook)) | length) == 0
    then .hooks.Stop += [{"hooks": [{"type": "command", "command": $stop_hook, "async": true}]}]
    else . end)
 ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
 
-echo "Done! Claude Code hooks configured."
+echo "Done! Claude Code Stop hook configured."
 echo "Restart your Claude Code session for hooks to take effect."

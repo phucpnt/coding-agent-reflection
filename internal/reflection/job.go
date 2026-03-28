@@ -3,6 +3,7 @@ package reflection
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -10,10 +11,15 @@ import (
 	"github.com/phuc/coding-agent-reflection/internal/model"
 )
 
+// PromptTemplatePath can be set to a file path containing a custom prompt template.
+// The template should contain {{INTERACTIONS}} as a placeholder.
+var PromptTemplatePath string
+
 type Store interface {
 	QueryByDateRange(ctx context.Context, from, to time.Time) ([]model.Interaction, error)
 	UpsertReflection(ctx context.Context, r model.Reflection) error
 	PruneInteractions(ctx context.Context, retentionDays int) (int64, error)
+	HasReflection(ctx context.Context, date time.Time) (bool, error)
 }
 
 type ReflectionResult struct {
@@ -68,18 +74,36 @@ func RunReflection(ctx context.Context, store Store, llm LLMClient, targetDate t
 }
 
 func buildReflectionPrompt(interactions []model.Interaction) string {
-	var b strings.Builder
-	b.WriteString("Analyze the following coding agent interactions from today and provide a structured reflection.\n\n")
-	b.WriteString("For each interaction, I'll show the provider, prompt, and output.\n\n")
+	interactionsBlock := formatInteractions(interactions)
 
+	// Try custom template first
+	if PromptTemplatePath != "" {
+		if tmpl, err := os.ReadFile(PromptTemplatePath); err == nil {
+			return strings.ReplaceAll(string(tmpl), "{{INTERACTIONS}}", interactionsBlock)
+		}
+	}
+
+	// Default template
+	return defaultPromptTemplate(interactionsBlock)
+}
+
+func formatInteractions(interactions []model.Interaction) string {
+	var b strings.Builder
 	for i, inter := range interactions {
 		fmt.Fprintf(&b, "--- Interaction %d (%s) ---\n", i+1, inter.Provider)
 		fmt.Fprintf(&b, "Project: %s\n", inter.Project)
 		fmt.Fprintf(&b, "Prompt: %s\n", truncate(inter.UserPrompt, 500))
 		fmt.Fprintf(&b, "Output: %s\n\n", truncate(inter.AgentOutput, 500))
 	}
+	return b.String()
+}
 
-	b.WriteString(`Please respond with exactly these four sections, using these exact headers:
+func defaultPromptTemplate(interactions string) string {
+	return `Analyze the following coding agent interactions from today and provide a structured reflection.
+
+For each interaction, I'll show the provider, prompt, and output.
+
+` + interactions + `Please respond with exactly these four sections, using these exact headers:
 
 ## Summary
 A brief summary of the day's interactions — what was accomplished, overall patterns.
@@ -92,8 +116,7 @@ Mistakes, anti-patterns, or ineffective approaches to avoid.
 
 ## Config Changes
 Suggestions for updating agent configs, rules, or workflows based on today's patterns. Write "none" if no changes suggested.
-`)
-	return b.String()
+`
 }
 
 func parseReflectionResponse(response string) ReflectionResult {

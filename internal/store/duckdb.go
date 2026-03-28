@@ -143,6 +143,16 @@ func (s *Store) PruneInteractions(ctx context.Context, retentionDays int) (int64
 	return result.RowsAffected()
 }
 
+func (s *Store) HasReflection(ctx context.Context, date time.Time) (bool, error) {
+	dateStr := date.Format("2006-01-02")
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM reflections WHERE date = ?`, dateStr).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (s *Store) HealthCheck(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }

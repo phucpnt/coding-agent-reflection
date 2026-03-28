@@ -6,12 +6,13 @@ import (
 )
 
 type Config struct {
-	Port               string
-	DBPath             string
-	RetentionDays      int
-	ReflectionCLI      string
-	ReflectionSchedule string
+	Port                string
+	DBPath              string
+	RetentionDays       int
+	ReflectionCLI       string
+	ReflectionSchedule  string
 	ReflectionOutputDir string
+	ReflectionPrompt    string
 }
 
 func Load() Config {
@@ -22,6 +23,7 @@ func Load() Config {
 		ReflectionCLI:      envOr("COLLECTOR_REFLECTION_CLI", "claude --print"),
 		ReflectionSchedule: envOr("COLLECTOR_REFLECTION_SCHEDULE", "daily"),
 		ReflectionOutputDir: envOr("COLLECTOR_REFLECTION_DIR", "./data/reflections"),
+		ReflectionPrompt:    envOr("COLLECTOR_REFLECTION_PROMPT", ""),
 	}
 }
 

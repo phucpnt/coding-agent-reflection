@@ -39,7 +39,15 @@ func RunScheduler(ctx context.Context, store Store, llm LLMClient, schedule stri
 			targetDate = targetDate.AddDate(0, 0, -1) // reflect on yesterday
 		}
 
-		slog.Info("running scheduled reflection", "date", targetDate.Format("2006-01-02"))
+		dateStr := targetDate.Format("2006-01-02")
+
+		// Skip if already reflected for this date
+		if exists, err := store.HasReflection(ctx, targetDate); err == nil && exists {
+			slog.Info("reflection already exists, skipping", "date", dateStr)
+			continue
+		}
+
+		slog.Info("running scheduled reflection", "date", dateStr)
 		r, err := RunReflection(ctx, store, llm, targetDate, outputDir)
 		if err != nil {
 			slog.Error("scheduled reflection failed", "err", err)

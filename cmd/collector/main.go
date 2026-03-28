@@ -34,6 +34,10 @@ func main() {
 	defer s.Close()
 
 	llm := reflection.NewCLICompleter(cfg.ReflectionCLI)
+	if cfg.ReflectionPrompt != "" {
+		reflection.PromptTemplatePath = cfg.ReflectionPrompt
+		slog.Info("using custom reflection prompt", "path", cfg.ReflectionPrompt)
+	}
 
 	mux := http.NewServeMux()
 

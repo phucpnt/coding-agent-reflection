@@ -44,6 +44,15 @@ func (m *mockStore) PruneInteractions(_ context.Context, days int) (int64, error
 	return 0, nil
 }
 
+func (m *mockStore) HasReflection(_ context.Context, date time.Time) (bool, error) {
+	for _, r := range m.reflections {
+		if r.Date.Format("2006-01-02") == date.Format("2006-01-02") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func TestRunReflection_WithInteractions(t *testing.T) {
 	today := time.Now()
 	store := &mockStore{
