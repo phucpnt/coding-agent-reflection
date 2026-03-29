@@ -1,113 +1,109 @@
 # AI Interaction Collector
 
-A Go service that captures interactions from coding agents (Claude Code, Gemini CLI, Codex) into SQLite and generates daily self-reflections using a configurable CLI.
-
-## Prerequisites
-
-- Go 1.24+
-- `jq` (for setup scripts)
-- At least one coding CLI: `claude`, `gemini`, or `codex`
+Capture interactions from coding agents (Claude Code, Gemini CLI, Codex) into SQLite and generate daily self-reflections.
 
 ## Quick Start
 
 ```bash
-git clone <repo-url> && cd coding-agent-reflection
+# Install
+go install github.com/phuc/coding-agent-reflection/cmd/ai-collector@latest
 
-# Build binaries
-make install
+# First-run setup (interactive wizard)
+ai-collector init
 
-# Configure hooks for your CLI(s)
-make setup-claude    # Claude Code
-make setup-gemini    # Gemini CLI
-make setup-codex     # Codex
-
-# Start the collector
-make run
-
-# Verify everything is wired up
-make verify
+# Or with all defaults
+ai-collector init --defaults
 ```
 
-Restart your coding CLI session after setup for hooks to take effect.
+The init wizard will:
+1. Ask which CLI to use for reflections (claude/gemini/codex)
+2. Configure reflection output directory and port
+3. Set up hooks for your coding CLIs
+4. Optionally start the collector
+
+## Commands
+
+```bash
+ai-collector init                    # Interactive setup wizard
+ai-collector start                   # Start collector in background
+ai-collector stop                    # Stop background collector
+ai-collector serve                   # Run collector in foreground (dev)
+ai-collector status                  # Health check + recent interactions
+ai-collector reflect                 # Trigger reflection for today
+ai-collector reflect --date 2026-03-27
+ai-collector query                   # Show today's interactions
+ai-collector query week              # Last 7 days
+ai-collector query stats             # Summary with counts
+ai-collector query reflections       # Recent reflections
+ai-collector setup claude            # Configure Claude Code hooks
+ai-collector setup claude --global   # Skip scope prompt
+ai-collector setup gemini            # Configure Gemini CLI hooks
+ai-collector setup codex             # Configure Codex OTel export
+ai-collector config                  # View current config
+ai-collector config set PORT 8080    # Update a config value
+ai-collector version                 # Show version info
+```
 
 ## Configuration
 
-All configuration is via environment variables:
+Config file: `~/.config/ai-collector/config.yaml`
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `COLLECTOR_PORT` | `19321` | HTTP server port |
-| `COLLECTOR_DB_PATH` | `./data/ai_interactions.db` | SQLite database path |
-| `COLLECTOR_RETENTION_DAYS` | `0` (keep all) | Auto-prune interactions older than N days |
-| `COLLECTOR_REFLECTION_CLI` | `claude --print` | CLI command for generating reflections |
-| `COLLECTOR_REFLECTION_SCHEDULE` | `daily` | `daily`, `hourly`, or `off` |
-| `COLLECTOR_REFLECTION_DIR` | `./data/reflections` | Directory for reflection markdown files |
-| `COLLECTOR_REFLECTION_PROMPT` | _(built-in)_ | Path to custom prompt template file |
+```yaml
+port: 19321
+db_path: ~/.local/share/ai-collector/ai_interactions.db
+retention_days: 0
 
-Example with custom settings:
-
-```bash
-COLLECTOR_REFLECTION_CLI="gemini" COLLECTOR_REFLECTION_SCHEDULE=hourly make run
+reflection:
+  cli: claude --print
+  schedule: daily
+  output_dir: ~/.local/share/ai-collector/reflections
+  prompt: ""  # path to custom prompt template
 ```
+
+Environment variables override the config file:
+
+| Variable | Config Key | Default |
+|----------|-----------|---------|
+| `COLLECTOR_PORT` | `port` | `19321` |
+| `COLLECTOR_DB_PATH` | `db_path` | `~/.local/share/ai-collector/ai_interactions.db` |
+| `COLLECTOR_RETENTION_DAYS` | `retention_days` | `0` (keep all) |
+| `COLLECTOR_REFLECTION_CLI` | `reflection.cli` | `claude --print` |
+| `COLLECTOR_REFLECTION_SCHEDULE` | `reflection.schedule` | `daily` |
+| `COLLECTOR_REFLECTION_DIR` | `reflection.output_dir` | `~/.local/share/ai-collector/reflections` |
+| `COLLECTOR_REFLECTION_PROMPT` | `reflection.prompt` | built-in template |
 
 ### Custom Reflection Prompt
 
-Override the built-in reflection prompt by pointing to your own template file:
+Override the reflection prompt with your own template:
 
 ```bash
-COLLECTOR_REFLECTION_PROMPT=./prompts/reflection.md make run
+ai-collector config set reflection.prompt /path/to/my-prompt.md
 ```
 
-The template file uses `{{INTERACTIONS}}` as a placeholder that gets replaced with the formatted interaction data. See `prompts/reflection.md` for the default template.
-
-Your template should instruct the LLM to respond with `## Summary`, `## Should Do`, `## Should Not Do`, and `## Config Changes` section headers — the parser extracts these sections from the response.
-
-## Usage
-
-```bash
-# Query recent interactions
-make status
-
-# Trigger a reflection manually
-make reflect
-
-# Use the query tool directly
-./query today        # today's interactions
-./query week         # last 7 days
-./query stats        # summary with counts
-./query reflections  # recent reflections
-```
+The template uses `{{INTERACTIONS_FILE}}` as a placeholder for the file path containing the day's interactions. See `prompts/reflection.md` for the default.
 
 ## How It Works
 
 1. **Hooks** fire on each coding CLI interaction and POST data to the collector
 2. **Collector** normalizes payloads and stores them in SQLite
-3. **Scheduler** triggers reflections on your configured schedule
-4. **Reflection** pipes the day's interactions to your chosen CLI and saves the result as a `YYYYMMDD-NNN.md` file
+3. **Scheduler** checks on startup + every hour if yesterday's reflection is missing
+4. **Reflection** writes interactions to a file, pipes a prompt to your CLI, saves the result as `YYYYMMDD-NNN.md`
 
-## API Endpoints
+## File Locations
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/ingest/claude` | Claude Code hook ingest |
-| `POST` | `/ingest/gemini` | Gemini CLI hook ingest |
-| `POST` | `/v1/traces` | Codex OTLP trace ingest |
-| `GET` | `/interactions` | Query recent interactions |
-| `POST` | `/jobs/daily-reflection` | Trigger reflection manually |
+| What | Path |
+|------|------|
+| Config | `~/.config/ai-collector/config.yaml` |
+| Database | `~/.local/share/ai-collector/ai_interactions.db` |
+| Reflections | `~/.local/share/ai-collector/reflections/` |
+| Logs | `~/.local/share/ai-collector/collector.log` |
+| PID file | `~/.local/share/ai-collector/collector.pid` |
 
-## Project Structure
+## Building from Source
 
-```
-cmd/collector/    — HTTP server entry point
-cmd/query/        — CLI query tool
-config/           — Environment-based configuration
-internal/
-  ingest/         — Provider-specific HTTP handlers
-  model/          — Data structs (Interaction, Reflection)
-  reflection/     — CLI completer, scheduler, file writer
-  store/          — SQLite repository
-scripts/          — Setup and hook scripts
-examples/         — Example config snippets
-data/             — SQLite DB and reflection files (gitignored)
+```bash
+git clone https://github.com/phucpnt/coding-agent-reflection
+cd coding-agent-reflection
+make install    # builds and installs to ~/.local/bin/
+make test       # run tests
 ```

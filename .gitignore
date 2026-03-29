@@ -1,6 +1,7 @@
 # Build binaries (root-level only, not cmd/ source)
 /collector
 /query
+/ai-collector
 *.exe
 
 # DuckDB data

@@ -1,32 +1,16 @@
-.PHONY: install run setup-claude setup-gemini setup-codex reflect verify status
+.PHONY: install test
 
-COLLECTOR_URL ?= http://localhost:19321
+VERSION ?= dev
+BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -ldflags="-s -w -X main.version=$(VERSION) -X main.buildDate=$(BUILD_DATE)"
 
 install:
-	go build -o collector ./cmd/collector/
-	go build -o query ./cmd/query/
-	@echo "Built: ./collector ./query"
+	go build $(LDFLAGS) -o $(HOME)/.local/bin/ai-collector ./cmd/ai-collector/
+	@echo "Installed: ~/.local/bin/ai-collector"
+	@echo "Run 'ai-collector init' to get started."
 
-run:
-	go run ./cmd/collector/
-
-setup-claude:
-	./scripts/setup-claude.sh
-
-setup-gemini:
-	./scripts/setup-gemini.sh
-
-setup-codex:
-	./scripts/setup-codex.sh
-
-reflect:
-	@curl -s -X POST $(COLLECTOR_URL)/jobs/daily-reflection | jq .
-
-verify:
-	./scripts/verify.sh
-
-status:
-	@curl -s $(COLLECTOR_URL)/interactions | jq '[.[] | {ts: .Ts, provider: .Provider, prompt: (.UserPrompt | .[0:80])}]'
+build:
+	go build $(LDFLAGS) -o ai-collector ./cmd/ai-collector/
 
 test:
 	go test ./... -count=1

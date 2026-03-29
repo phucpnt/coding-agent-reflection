@@ -3,61 +3,71 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/phuc/coding-agent-reflection/config"
+	"github.com/spf13/cobra"
+
+	cfg "github.com/phuc/coding-agent-reflection/internal/config"
 	"github.com/phuc/coding-agent-reflection/internal/store"
 )
 
-func main() {
-	cfg := config.Load()
+var queryCmd = &cobra.Command{
+	Use:   "query [today|week|all|reflections|stats]",
+	Short: "Query interactions from the database",
+	Args:  cobra.MaximumNArgs(1),
+	RunE:  runQuery,
+}
 
-	s, err := store.New(cfg.DBPath)
+func init() {
+	rootCmd.AddCommand(queryCmd)
+}
+
+func runQuery(cmd *cobra.Command, args []string) error {
+	c, _ := cfg.Load()
+
+	s, err := store.New(c.DBPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open db: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer s.Close()
 
-	ctx := context.Background()
-
-	// Default: show today's interactions
-	days := 1
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "today":
-			days = 1
-		case "week":
-			days = 7
-		case "all":
-			days = 3650
-		case "reflections":
-			printReflections(s)
-			return
-		case "stats":
-			printStats(s)
-			return
-		default:
-			fmt.Fprintf(os.Stderr, "Usage: query [today|week|all|reflections|stats]\n")
-			os.Exit(1)
-		}
+	mode := "today"
+	if len(args) > 0 {
+		mode = args[0]
 	}
 
+	ctx := context.Background()
+
+	switch mode {
+	case "today":
+		return queryInteractions(ctx, s, 1)
+	case "week":
+		return queryInteractions(ctx, s, 7)
+	case "all":
+		return queryInteractions(ctx, s, 3650)
+	case "reflections":
+		return queryReflections(s)
+	case "stats":
+		return queryStats(s)
+	default:
+		return fmt.Errorf("unknown query mode: %s (use today|week|all|reflections|stats)", mode)
+	}
+}
+
+func queryInteractions(ctx context.Context, s *store.Store, days int) error {
 	now := time.Now()
 	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local).AddDate(0, 0, -(days - 1))
 	to := now.Add(time.Hour)
 
 	interactions, err := s.QueryByDateRange(ctx, from, to)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "query: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	if len(interactions) == 0 {
 		fmt.Println("No interactions found.")
-		return
+		return nil
 	}
 
 	fmt.Printf("Found %d interactions:\n\n", len(interactions))
@@ -67,32 +77,28 @@ func main() {
 		if inter.Project != "" {
 			fmt.Printf("  Project:  %s\n", inter.Project)
 		}
-		fmt.Printf("  Prompt:   %s\n", truncate(inter.UserPrompt, 120))
-		fmt.Printf("  Output:   %s\n", truncate(inter.AgentOutput, 120))
+		fmt.Printf("  Prompt:   %s\n", truncStr(inter.UserPrompt, 120))
+		fmt.Printf("  Output:   %s\n", truncStr(inter.AgentOutput, 120))
 		if inter.ToolsUsed.Valid {
 			fmt.Printf("  Tools:    %s\n", inter.ToolsUsed.String)
 		}
-		if inter.TokensPrompt.Valid {
-			fmt.Printf("  Tokens:   %d in / %d out\n", inter.TokensPrompt.Int64, inter.TokensOutput.Int64)
-		}
 		fmt.Println()
 	}
+	return nil
 }
 
-func printReflections(s *store.Store) {
+func queryReflections(s *store.Store) error {
 	rows, err := s.DB().QueryContext(context.Background(),
 		`SELECT date, summary, should_do, should_not_do FROM reflections ORDER BY date DESC LIMIT 10`)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "query reflections: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 	defer rows.Close()
 
 	found := false
 	for rows.Next() {
 		found = true
-		var dateStr string
-		var summary, shouldDo, shouldNotDo string
+		var dateStr, summary, shouldDo, shouldNotDo string
 		rows.Scan(&dateStr, &summary, &shouldDo, &shouldNotDo)
 		fmt.Printf("═══ %s ═══\n", dateStr)
 		fmt.Printf("Summary:       %s\n", summary)
@@ -103,13 +109,14 @@ func printReflections(s *store.Store) {
 	if !found {
 		fmt.Println("No reflections found.")
 	}
+	return nil
 }
 
-func printStats(s *store.Store) {
-	row := s.DB().QueryRowContext(context.Background(),
-		`SELECT count(*), count(DISTINCT session_id), count(DISTINCT provider) FROM interactions`)
+func queryStats(s *store.Store) error {
 	var total, sessions, providers int
-	row.Scan(&total, &sessions, &providers)
+	s.DB().QueryRowContext(context.Background(),
+		`SELECT count(*), count(DISTINCT session_id), count(DISTINCT provider) FROM interactions`).
+		Scan(&total, &sessions, &providers)
 
 	fmt.Printf("Total interactions: %d\n", total)
 	fmt.Printf("Unique sessions:   %d\n", sessions)
@@ -140,9 +147,10 @@ func printStats(s *store.Store) {
 			fmt.Printf("  %s  %s\n", day, strings.Repeat("█", cnt))
 		}
 	}
+	return nil
 }
 
-func truncate(s string, maxLen int) string {
+func truncStr(s string, maxLen int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	if len(s) <= maxLen {
 		return s

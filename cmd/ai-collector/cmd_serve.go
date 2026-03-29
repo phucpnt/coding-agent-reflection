@@ -3,48 +3,59 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/phuc/coding-agent-reflection/config"
+	"github.com/spf13/cobra"
+
+	cfg "github.com/phuc/coding-agent-reflection/internal/config"
 	"github.com/phuc/coding-agent-reflection/internal/ingest"
 	"github.com/phuc/coding-agent-reflection/internal/reflection"
 	"github.com/phuc/coding-agent-reflection/internal/store"
 )
 
-func main() {
+var serveCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Run the collector HTTP server in the foreground",
+	RunE:  runServe,
+}
+
+func init() {
+	rootCmd.AddCommand(serveCmd)
+}
+
+func runServe(cmd *cobra.Command, args []string) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
-	cfg := config.Load()
+	c, err := cfg.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 
 	// Auto-create data directories
-	os.MkdirAll(filepath.Dir(cfg.DBPath), 0o755)
-	os.MkdirAll(cfg.ReflectionOutputDir, 0o755)
+	os.MkdirAll(cfg.DataDir(), 0o755)
+	os.MkdirAll(c.Reflection.OutputDir, 0o755)
 
-	s, err := store.New(cfg.DBPath)
+	s, err := store.New(c.DBPath)
 	if err != nil {
-		slog.Error("failed to open store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
 
-	llm := reflection.NewCLICompleter(cfg.ReflectionCLI)
-	if cfg.ReflectionPrompt != "" {
-		reflection.PromptTemplatePath = cfg.ReflectionPrompt
-		slog.Info("using custom reflection prompt", "path", cfg.ReflectionPrompt)
+	llm := reflection.NewCLICompleter(c.Reflection.CLI)
+	if c.Reflection.Prompt != "" {
+		reflection.PromptTemplatePath = c.Reflection.Prompt
 	}
 
 	mux := http.NewServeMux()
 
-	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.HealthCheck(r.Context()); err != nil {
-			slog.Error("health check failed", "err", err)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "message": err.Error()})
 			return
@@ -52,12 +63,10 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	// Ingest
 	mux.HandleFunc("POST /ingest/claude", ingest.ClaudeHandler(s))
 	mux.HandleFunc("POST /ingest/gemini", ingest.GeminiHandler(s))
 	mux.HandleFunc("POST /v1/traces", ingest.CodexHandler(s))
 
-	// Query
 	mux.HandleFunc("GET /interactions", func(w http.ResponseWriter, r *http.Request) {
 		from := time.Now().AddDate(0, 0, -7)
 		to := time.Now().Add(time.Hour)
@@ -70,23 +79,20 @@ func main() {
 		json.NewEncoder(w).Encode(interactions)
 	})
 
-	// Reflection
-	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, llm, cfg.RetentionDays, cfg.ReflectionOutputDir))
+	mux.HandleFunc("POST /jobs/daily-reflection", reflection.Handler(s, llm, c.RetentionDays, c.Reflection.OutputDir))
 
 	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
+		Addr:    fmt.Sprintf(":%d", c.Port),
 		Handler: mux,
 	}
 
-	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Start reflection scheduler
-	go reflection.RunScheduler(ctx, s, llm, cfg.ReflectionSchedule, cfg.ReflectionOutputDir, cfg.RetentionDays)
+	go reflection.RunScheduler(ctx, s, llm, c.Reflection.Schedule, c.Reflection.OutputDir, c.RetentionDays)
 
 	go func() {
-		slog.Info("starting collector", "port", cfg.Port, "db", cfg.DBPath, "reflection_cli", cfg.ReflectionCLI, "schedule", cfg.ReflectionSchedule)
+		slog.Info("starting collector", "port", c.Port, "db", c.DBPath, "reflection_cli", c.Reflection.CLI, "schedule", c.Reflection.Schedule)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "err", err)
 			os.Exit(1)
@@ -98,5 +104,5 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	srv.Shutdown(shutdownCtx)
+	return srv.Shutdown(shutdownCtx)
 }
